@@ -165,3 +165,55 @@ DROP COLUMN PropertyAddress;
 SELECT * 
 FROM portfolio.house;
 --------------------------------------------------------------------------------------------------------------------------
+
+
+# Fill missing values in the Bedrooms field with a constant, the most frequent value (mode), or the 
+# most frequent value (mode) within each class
+
+	
+# Display records where the Bedrooms field has no value (is NULL)
+select UniqueID, Bedrooms
+from portfolio.house
+where Bedrooms is null;
+
+# Fill missing values in the Bedrooms field with 'Unknown'
+select UniqueID, coalesce(Bedrooms, 'Unknown') as Bedrooms
+from portfolio.house;
+
+# Find the most frequent value (mode) in the Bedrooms field
+select Bedrooms, count(Bedrooms) as rooms_count
+from portfolio.house
+group by Bedrooms
+order by rooms_count desc
+limit 1;
+
+# Fill missing values in the Bedrooms field with the most frequent value (mode)
+WITH ModeCTE AS (
+    SELECT Bedrooms
+    FROM portfolio.house
+    GROUP BY Bedrooms
+    ORDER BY COUNT(Bedrooms) DESC
+    LIMIT 1
+)
+SELECT UniqueID, COALESCE(Bedrooms, (SELECT Bedrooms FROM ModeCTE)) AS Bedrooms
+FROM portfolio.house;
+
+# Fill missing values in the Bedrooms field with the most frequent value (mode) for each year (YearBuilt)
+WITH ModePerYearCTE AS (
+SELECT
+        YearBuilt,
+        Bedrooms,
+        COUNT(Bedrooms) AS category_count,
+        ROW_NUMBER() OVER (PARTITION BY YearBuilt ORDER BY COUNT(Bedrooms) DESC) AS rn
+FROM portfolio.house
+WHERE Bedrooms IS NOT NULL
+GROUP BY YearBuilt, Bedrooms
+)
+SELECT 
+    h.UniqueID,
+    h.YearBuilt,
+    COALESCE(h.Bedrooms, (SELECT Bedrooms 
+                                    FROM ModePerYearCTE m 
+                                    WHERE m.YearBuilt = h.YearBuilt AND m.rn = 1)) AS filled_Bedrooms
+FROM portfolio.house h;
+--------------------------------------------------------------------------------------------------------------------------
